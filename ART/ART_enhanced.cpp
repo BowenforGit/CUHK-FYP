@@ -298,6 +298,16 @@ leafNode* maximum(Node* node) {
    throw; // Unreachable
 }
 
+uint64_t getSmallestKey(Node* node) {
+   leafNode* leaf = minimum(node);
+   return __builtin_bswap64(*reinterpret_cast<uint64_t*>(leaf->key));
+}
+
+uint64_t getLargestKey(Node* node) {
+   leafNode* leaf = maximum(node);
+   return __builtin_bswap64(*reinterpret_cast<uint64_t*>(leaf->key));
+}
+
 // bool leafMatches(Node* leaf,uint8_t key[],unsigned keyLength,unsigned depth,unsigned maxKeyLength) {
 //    // Check if the key of the leaf is equal to the searched key
 //    if (depth!=keyLength) {
@@ -368,10 +378,10 @@ leafNode* lookup(Node* node,uint8_t key[],unsigned keyLength,unsigned depth,unsi
          return leaf;
       }
 
-      printf("it is not a leaf node, node type = %d, prefix length = %d\n", node->type, node->prefixLength);
+      // printf("it is not a leaf node, node type = %d, prefix length = %d\n", node->type, node->prefixLength);
 
       if (node->prefixLength) {
-         printf("check prefix lenghth here\n");
+         // printf("check prefix lenghth here\n");
          // printf("0x%x%x%x%x%x%x%x%x\n", key[0],key[1],key[2],key[3],key[4],key[5],key[6],key[7]);
          if (node->prefixLength<maxPrefixLength) {
             // printf("key length = %u, prefix length = %u, depth = %u\n", keyLength, node->prefixLength, depth);
@@ -742,82 +752,6 @@ void eraseNode256(Node256* node,Node** nodeRef,uint8_t keyByte) {
 }
 
 
-// TODO: use int type for n, start and end is not secure enough */
-// Node* bulkLoad(const uintptr_t* values, const uint8_t** keyMat, const uint64_t n, const uint64_t start, const uint64_t end, int depth, const int maxDepth) { // end exlusive
-//    if (depth == maxDepth+1) {
-//       // TODO: store keys 
-//       return NULL;
-//    }
-
-//    int localKeyCount = end-start; // number of keys relevant with this node
-
-//    if (localKeyCount == 1) { // only one node arrives at this level, lazy expansion
-//       return makeLeaf(keyMat[start], 8, values[start]);
-//    }
-   
-//    uint8_t distinctKeys[std::min(localKeyCount, 256)]; // distinct keys at this depth
-//    int distinctKeyCount = 0; // number of distinct keys
-//    int offset[std::min(localKeyCount, 256)+1]; // the start position of each distinc keys
-   
-//    for (int i = start; i < start+localKeyCount; i++) {
-//       if (i == start) {
-//          distinctKeys[0] = keyMat[i][depth];
-//          distinctKeyCount++;
-//          offset[0] = 0;
-//       } else if (distinctKeys[distinctKeyCount-1] != keyMat[i][depth]) {
-//          distinctKeys[distinctKeyCount] = keyMat[i][depth];
-//          offset[distinctKeyCount] = i-start;
-//          distinctKeyCount++;
-//       }
-//    }
-//    offset[distinctKeyCount] = end-start;
-//    assert(distinctKeyCount >= 1 && distinctKeyCount <= 256 && distinctKeyCount <= localKeyCount);
-
-//    if(distinctKeyCount == 1 && localKeyCount != 1) { // path compression
-//       return bulkLoad(values, keyMat, n, start, end, depth+1, maxDepth); // directly go to the next depth
-//    }
-   
-//    // build a local node
-//    // TODO: pessimistic path compression, now it is optimisic, i.e., we do not record any prefix
-//    if (distinctKeyCount <= 4) {
-//       Node4* newNode = new Node4();
-//       for (int i = 0; i < distinctKeyCount; i++) {
-//          newNode->key[i] = distinctKeys[i];
-//          newNode->child[i] = bulkLoad(values, keyMat, n, start+offset[i], start+offset[i+1], depth+1, maxDepth);
-//       }
-//       newNode->count = distinctKeyCount;
-//       return newNode;
-//    } 
-//    else if (distinctKeyCount > 4 && distinctKeyCount <= 16) {
-//       Node16* newNode = new Node16();
-//       for (int i = 0; i < distinctKeyCount; i++) {
-//          newNode->key[i] = distinctKeys[i];
-//          newNode->child[i] = bulkLoad(values, keyMat, n, start+offset[i], start+offset[i+1], depth+1, maxDepth);
-//       }
-//       newNode->count = distinctKeyCount;
-//       return newNode;
-//    } 
-//    else if (distinctKeyCount > 16 && distinctKeyCount <= 48) {
-//       Node48* newNode = new Node48();
-//       for (int i = 0; i < distinctKeyCount; i++) {
-//          uint8_t keyByte = keyMat[start+offset[i]][depth];
-//          newNode->childIndex[keyByte] = i;
-//          newNode->child[i] = bulkLoad(values, keyMat, n, start+offset[i], start+offset[i+1], depth+1, maxDepth);
-//       }
-//       newNode->count = distinctKeyCount;
-//       return newNode;
-//    } 
-//    else { // (48,256] 
-//       Node256* newNode = new Node256();
-//       for (int i = 0; i < distinctKeyCount; i++) {
-//          uint8_t keyByte = keyMat[start+offset[i]][depth];
-//          newNode->child[keyByte] = bulkLoad(values, keyMat, n, start+offset[i], start+offset[i+1], depth+1, maxDepth);
-//       }
-//       newNode->count = distinctKeyCount;
-//       return newNode;
-//    }
-// }
-
 inline uint64_t min(uint64_t a, uint64_t b) { // overload
    return (a<b)?a:b;
 }
@@ -991,24 +925,24 @@ void rangeQuery(Node* node,
 
    if (!explore && !isLeaf(node)) { // directly go to the next
       if (node->type == NodeType4) {
-         // printf("Unexplored Node4 encountered, depth=%d\n", depth);
+         // printf("Unexplored Node4 encountered, depth=%d, addr=%p\n", depth, node);
          for (unsigned i = 0; i < 4; i++) {
             rangeQuery(static_cast<Node4*>(node)->child[i], start, end, keyLength, results, depth+1, false, matchedValue);
          }
       }
       else if (node->type == NodeType16) {
-         // printf("Unexplored Node16 encountered, depth=%d\n", depth);
+         // printf("Unexplored Node16 encountered, depth=%d, addr=%p\n", depth,node);
          for (unsigned i = 0; i < node->count; i++) {
             rangeQuery(static_cast<Node16*>(node)->child[i], start, end, keyLength, results, depth+1, false, matchedValue);
          }
       }
       else if (node->type == NodeType48) {
-         // printf("Unexplored Node48 encountered, depth=%d\n", depth);
+         // printf("Unexplored Node48 encountered, depth=%d, addr=%p\n", depth, node);
          unsigned cnt = 0;
          Node48* tmp = static_cast<Node48*>(node);
-         for (uint8_t i = 0; cnt <= node->count; i++) {
+         for (unsigned i = 0; i<48; i++) {
             if (tmp->childIndex[i] != emptyMarker) {
-               cnt++;
+               // cnt++;
                rangeQuery(tmp->child[tmp->childIndex[i]], start, end, keyLength, results, depth+1, false, matchedValue);
             }
          }
@@ -1019,12 +953,12 @@ void rangeQuery(Node* node,
          for (unsigned i = 0; i < 256; i++) {
             rangeQuery(tmp->child[i], start, end, keyLength, results, depth+1, false, matchedValue);
          }
+         // printf("Unexplored Node256 encountered, depth=%d\n", depth);
       }
       return;
    }
 
    if (isLeaf(node)) {
-      // printf("Leaf node encountered!\n");
       // uint64_t leafValue = getLeafValue(node);
       leafNode* leaf = child2Leaf(node);
       uint64_t leafKey =  __builtin_bswap64(*reinterpret_cast<uint64_t*>(leaf->key));
@@ -1038,19 +972,34 @@ void rangeQuery(Node* node,
          // results.push_back(leafKey);
          // printf("%lu\n", results.size());
          for (uint32_t i = 0; i < leaf->count; i++) {
+            // printf("Cond 2: Leaf node with key %llu encountered!\n", leafKey);
             results.push_back((*(leaf->ptr))[i]);
          }
       }
       return;
    }
    else {
-      if (node->prefixLength) { // a compressed node
+      if (node->prefixLength > maxPrefixLength) { // a compressed node
          // printf("Inner node->compressed node\n");
          rangeQuery(node, start, end, keyLength, results, depth, false, matchedValue); // re-search this node and set the explore flag to false
+         return;
       }
       else {
          // because it is still exploring, the value for the previous depths must match either start or end
          // printf("Inner node->uncompressed node\n");
+
+         // update depth
+         depth += node->prefixLength; // the index of the byte to be visited
+         
+         // compute prefix value
+         uint64_t prefixValue = 0;
+         for (unsigned i = 0; i < node->prefixLength; i++) {
+            prefixValue  = (prefixValue << 8) + node->prefix[i];
+         }
+
+         // compute new matched value
+         matchedValue = (matchedValue << node->prefixLength) + prefixValue;
+
          uint64_t left = start >> (8*(7-depth));
          uint64_t right = end >> (8*(7-depth));
          switch (node->type) {

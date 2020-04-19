@@ -15,9 +15,17 @@ int main(int argc,char** argv) {
 	generate_keys(keys, n, mode);
 	generate_values(values, n);
 
-	test_insertion(keys, values, n, true);
-	test_bulk_loading(keys, values, n, true);
-	test_range_query(keys, values, n, 0, 50);
+	// test_art_insertion(keys, values, n, true);
+	// test_art_bulk_loading(keys, values, n, true);
+	// test_art_lookup(keys, values, n);
+	test_art_range_query(keys, values, n, 5000, 10000);
+	// std::vector<uint64_t> without = {56, 63, 9, 72, 90, 450, 689};
+	// test_art_WITHOUT(keys, values, n, without);
+
+	// test_grasper_insertion(keys, values, n);
+	// test_grasper_lookup(keys, values, n);
+	test_grasper_range_query(keys, values, n, 5000, 10000);
+	// test_grasper_WITHOUT(keys, values, n, without);
 
 	delete[] keys;
 	delete[] values;
