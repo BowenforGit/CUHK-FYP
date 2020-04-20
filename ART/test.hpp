@@ -12,6 +12,7 @@
 struct Node;
 struct leafNode;
 void loadKey(uintptr_t tid,uint8_t key[]);
+uint64_t getLeafKey(leafNode* leaf);
 leafNode* lookup(Node* node,uint8_t key[],unsigned keyLength,unsigned depth,unsigned maxKeyLength);
 uint64_t getSmallestKey(Node* node);
 uint64_t getLargestKey(Node* node);
@@ -46,23 +47,30 @@ static inline uint64_t max(uint64_t a, uint64_t b) { // overload
 
 void generate_keys(uint64_t* keys, uint64_t n, int mode) {
   // Generate keys
-   for (uint64_t i=0;i<n;i++){
-      // dense, sorted
-      keys[i]=i+1;
-      // printf("key = %llu\n", keys[i]);  
-   }
-      
-   if (mode==1) {
-      // dense, random
-      std::random_shuffle(keys,keys+n);
-   }
-      
-   if (mode==2) {
-      // "pseudo-sparse" (the most-significant leaf bit gets lost)
-      for (uint64_t i=0;i<n;i++) {
-         keys[i]=(static_cast<uint64_t>(rand())<<32) | static_cast<uint64_t>(rand()); /* rand() return an int */
-      }
-   }
+  for (uint64_t i=0;i<n;i++){
+    // dense, sorted
+    keys[i]=i+1;
+    // printf("key = %llu\n", keys[i]);  
+  }
+    
+  if (mode==1) {
+    // dense, random
+    std::random_shuffle(keys,keys+n);
+    // printf("keys[0]=%llu, keys[1]=%llu\n", keys[0], keys[1]);
+  }
+    
+  if (mode==2) {
+    // "pseudo-sparse" (the most-significant leaf bit gets lost)
+    for (uint64_t i=0;i<n;i++) {
+       keys[i]=(static_cast<uint64_t>(rand())<<32) | static_cast<uint64_t>(rand()); /* rand() return an int */
+    }
+  }
+
+  // #ifdef DEBUG
+  //   for(uint64_t i = 0; i < n; i++) {
+  //     printf("keys[%llu]=%llu\n", i, keys[i]);
+  //   }
+  // #endif
 }
 
 void generate_values(uint64_t* values, uint64_t n) {
@@ -73,12 +81,19 @@ void generate_values(uint64_t* values, uint64_t n) {
   // std::random_shuffle(values,values+n);
 }
 
+void generate_without_set(uint64_t* keys, uint64_t n, uint64_t card, std::vector<uint64_t>& vec) {
+  for(uint64_t i = 0; i < card; i++) {
+    int idx = rand()%n;
+    vec.push_back(keys[idx]);
+  }
+}
+
 void erase_all(Node* tree, Node** nodeRef, uint64_t* keys, uint64_t n) {
   for (uint64_t i=0;i<n;i++) {
       uint8_t key[8];loadKey(keys[i],key);
       erase(tree,&tree,key,8,0,8);
   }
-  printf("Erase all elements\n");
+  // printf("Erase all elements\n");
   assert(tree == NULL);
 }
 
@@ -90,8 +105,21 @@ Node* test_art_insertion(uint64_t* keys, uint64_t* values, uint64_t n, bool eras
     insert(tree,&tree,key,0,values[i],8);
   }
 
+  // #ifdef DEBUG
+  //   for(uint64_t i = 0; i < n; i++) {
+  //     uint8_t key[8]; loadKey(keys[i], key);
+  //     printf("Look for key = %llu, 0x%llx\n", keys[i], keys[i]);
+  //     leafNode* r = lookup(tree, key, 8, 0, 8);
+  //     assert(r != NULL);
+  //     uint64_t key_at_r = getLeafKey(r);
+  //     printf("Find key = %llu; real key = %llu\n", key_at_r, keys[i]);
+  //     assert(key_at_r == keys[i]);
+  //   }
+  // #endif
+
   if (erase) {
-    printf("insert,%lld,%f\n",n,(n/1000000.0)/(gettime()-start));
+    // printf("insert,%lld,%f\n",n,(n/1000000.0)/(gettime()-start));
+    printf("%f\n",(n/1000000.0)/(gettime()-start));
     erase_all(tree, &tree, keys, n);
   }
   return tree;
@@ -112,8 +140,21 @@ Node* test_art_bulk_loading(uint64_t* keys, uint64_t* values, uint64_t n, bool e
   
   tree = bulkLoad(keyMat, values, 8, 0, n, 0, 0);
 
+  // #ifdef DEBUG_BULK
+  //   for(uint64_t i = 0; i < n; i++) {
+  //     uint8_t key[8]; loadKey(keys[i], key);
+  //     printf("Look for key = %llu, 0x%llx\n", keys[i], keys[i]);
+  //     leafNode* r = lookup(tree, key, 8, 0, 8);
+  //     assert(r != NULL);
+  //     uint64_t key_at_r = getLeafKey(r);
+  //     printf("Find key = %llu; real key = %llu\n", key_at_r, keys[i]);
+  //     assert(key_at_r == keys[i]);
+  //   }
+  // #endif
+
   if (erase) {
-    printf("bulk load,%lld,%f\n",n,(n/1000000.0)/(gettime()-start));
+    // printf("bulk load,%lld,%f\n",n,(n/1000000.0)/(gettime()-start));
+    printf("%f\n",(n/1000000.0)/(gettime()-start));
     erase_all(tree, &tree, keys, n);
   }
 
@@ -128,23 +169,34 @@ void test_art_lookup(uint64_t* keys, uint64_t* values, uint64_t n) { // WITHIN, 
     uint8_t key[8]; loadKey(keys[i], key);
     lookup(tree, key, 8, 0, 8);
   }
-  printf("art lookup,%lld,%f\n",n,(n/1000000.0)/(gettime()-start));
+  // printf("art lookup,%lld,%f\n",n,(n/1000000.0)/(gettime()-start));
+  printf("%f\n",(n/1000000.0)/(gettime()-start));
+
 
   erase_all(tree, &tree, keys, n);
 }
 
-void test_art_range_query(uint64_t* keys, uint64_t* values, uint64_t n, uint64_t left, uint64_t right) { // LT, LTE, GT, GTE, BETWEEN, INSIDE, OUTSIDE, NEQ
+void test_art_range_query(uint64_t* keys, uint64_t* values, uint64_t n, uint64_t width) { // LT, LTE, GT, GTE, BETWEEN, INSIDE, OUTSIDE, NEQ
   Node* tree = test_art_insertion(keys, values, n, false);
 
   std::vector<uint64_t> results;
+  // randomly choose a range of length width
+  int start_idx = rand()%n;
+  uint64_t left = keys[start_idx];
+  uint64_t right = left+width-1;
   
   double start = gettime();
   rangeQuery(tree, left, right, 8, results, 0, true, 0);
+
+// #ifdef DEBUG
   printf("number of elements found = %lu\n", results.size());
   // for(auto item:results) {
   //   printf("%llu\n", item);
   // }
-  printf("range query,%lld,time=%f\n",n,gettime()-start);
+  // printf("range query,%lld,time=%f\n",n,gettime()-start);
+// #endif
+  
+  printf("%f\n", gettime()-start);
 
   erase_all(tree, &tree, keys, n);
 }
@@ -169,9 +221,10 @@ void test_art_WITHOUT(uint64_t* keys, uint64_t* values, uint64_t n, std::vector<
   rangeQuery(tree, min(without.back()+1, largest), largest, 8, results, 0, true, 0);
   // printf("range=[%llu,%llu], length=%llu, size = %lu\n", min(without.back()+1, largest), largest, (largest-min(without.back()+1, largest)+1),results.size());
 
-  printf("result set size = %lu\n", results.size());
+  // printf("result set size = %lu\n", results.size());
 
-  printf("art without query,%lld,time=%f\n",n,gettime()-start);
+  // printf("art without query,%lld,time=%f\n",n,gettime()-start);
+  printf("%f\n", gettime()-start);
 
   erase_all(tree, &tree, keys, n);
 }
@@ -182,7 +235,8 @@ void test_grasper_insertion(uint64_t* keys, uint64_t* values, uint64_t n) {
   for (uint64_t i = 0; i < n; i++) {
     index_map[keys[i]].push_back(values[i]);
   }
-  printf("grasper insertion,%lld,%f\n",n,(n/1000000.0)/(gettime()-start));
+  // printf("grasper insertion,%lld,%f\n",n,(n/1000000.0)/(gettime()-start));
+  printf("%f\n",(n/1000000.0)/(gettime()-start));
 }
 
 void test_grasper_insertion(uint64_t* keys, uint64_t* values, uint64_t n, std::map<uint64_t, std::vector<uint64_t>>& index_map) {
@@ -190,7 +244,7 @@ void test_grasper_insertion(uint64_t* keys, uint64_t* values, uint64_t n, std::m
   for (uint64_t i = 0; i < n; i++) {
     index_map[keys[i]].push_back(values[i]);
   }
-  printf("grasper insertion,%lld,%f\n",n,(n/1000000.0)/(gettime()-start));
+  // printf("grasper insertion,%lld,%f\n",n,(n/1000000.0)/(gettime()-start));
 }
 
 void test_grasper_lookup(uint64_t* keys, uint64_t* values, uint64_t n) {
@@ -205,13 +259,18 @@ void test_grasper_lookup(uint64_t* keys, uint64_t* values, uint64_t n) {
       results.insert(results.end(), itr->second.begin(), itr->second.end());
     }
   }
-  printf("grasper lookup,%lld,%f\n",n,(n/1000000.0)/(gettime()-start));
+  // printf("grasper lookup,%lld,%f\n",n,(n/1000000.0)/(gettime()-start));
+  printf("%f\n",(n/1000000.0)/(gettime()-start));
 }
 
-void test_grasper_range_query(uint64_t* keys, uint64_t* values, uint64_t n, uint64_t left, uint64_t right) {
+void test_grasper_range_query(uint64_t* keys, uint64_t* values, uint64_t n, uint64_t width) {
   std::map<uint64_t, std::vector<uint64_t>> index_map;
   test_grasper_insertion(keys, values, n, index_map);
   std::vector<uint64_t> results;
+
+  int start_idx = rand()%n;
+  uint64_t left = keys[start_idx];
+  uint64_t right = left+width-1;
 
   double start = gettime();
   auto itr_low = index_map.lower_bound(left);
@@ -219,8 +278,9 @@ void test_grasper_range_query(uint64_t* keys, uint64_t* values, uint64_t n, uint
   for (auto itr = itr_low; itr != itr_high; itr++) {
     results.insert(results.end(), itr->second.begin(), itr->second.end());
   }
-  printf("%lu elements found\n", results.size());
-  printf("grasper range query,%lld,time=%f\n",n,(gettime()-start));
+  // printf("%lu elements found\n", results.size());
+  // printf("grasper range query,%lld,time=%f\n",n,(gettime()-start));
+  printf("%f\n", gettime()-start);
 }
 
 void test_grasper_WITHOUT(uint64_t* keys, uint64_t* values, uint64_t n, std::vector<uint64_t>& without) {
@@ -235,7 +295,7 @@ void test_grasper_WITHOUT(uint64_t* keys, uint64_t* values, uint64_t n, std::vec
       results.insert(results.end(), item.second.begin(), item.second.end());
     }
   }
-  printf("result set size = %lu\n", results.size());
-  printf("grasper without query,%lld,time=%f\n",n,(gettime()-start));
-
+  // printf("result set size = %lu\n", results.size());
+  // printf("grasper without query,%lld,time=%f\n",n,(gettime()-start));
+  printf("%f\n", gettime()-start);
 }

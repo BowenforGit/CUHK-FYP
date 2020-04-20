@@ -177,6 +177,10 @@ void loadKey(uintptr_t tid,uint8_t key[]) {
    reinterpret_cast<uint64_t*>(key)[0]=__builtin_bswap64(tid); /* tid is little-endian, therefore we need to reverse the byte order */
 }
 
+uint64_t getLeafKey(leafNode* leaf) {
+   return __builtin_bswap64(*reinterpret_cast<uint64_t*>(leaf->key));
+}
+
 // This address is used to communicate that search failed
 Node* nullNode=NULL;
 
@@ -206,11 +210,21 @@ Node** findChild(Node* n,uint8_t keyByte) {
       }
       case NodeType16: {
          Node16* node=static_cast<Node16*>(n);
+         // if(keyByte==0) {
+         //    printf("keyByte=0x%x\n", keyByte);
+         //    for(unsigned i = 0; i < node->count;i++) {
+         //       printf("0x%x\n", node->key[i]);
+         //    }
+         // }
          __m128i cmp=_mm_cmpeq_epi8(_mm_set1_epi8(flipSign(keyByte)),_mm_loadu_si128(reinterpret_cast<__m128i*>(node->key)));
          unsigned bitfield=_mm_movemask_epi8(cmp)&((1<<node->count)-1);
-         if (bitfield)
-            return &node->child[ctz(bitfield)]; else
+         if (bitfield){
+            return &node->child[ctz(bitfield)]; 
+         }
+         else {
+            // printf("return NULL\n");
             return &nullNode;
+         }
       }
       case NodeType48: {
          Node48* node=static_cast<Node48*>(n);
@@ -362,12 +376,14 @@ leafNode* lookup(Node* node,uint8_t key[],unsigned keyLength,unsigned depth,unsi
    while (node!=NULL) {
       // printf("Input address: %p\n", node);
       if (isLeaf(node)) {
+         // printf("is a leaf node\n");
          leafNode* leaf = child2Leaf(node);
          if (!skippedPrefix&&depth==keyLength) // No check required
             return leaf;
 
          if (depth!=keyLength) {
             // Check leaf
+            // printf("additional check\n");
             uint8_t* leafKey = leaf->key;
             // loadKey(getLeafValue(node),leafKey);
             for (unsigned i=(skippedPrefix?0:depth);i<keyLength;i++)
@@ -381,7 +397,7 @@ leafNode* lookup(Node* node,uint8_t key[],unsigned keyLength,unsigned depth,unsi
       // printf("it is not a leaf node, node type = %d, prefix length = %d\n", node->type, node->prefixLength);
 
       if (node->prefixLength) {
-         // printf("check prefix lenghth here\n");
+         // printf("check prefix here\n");
          // printf("0x%x%x%x%x%x%x%x%x\n", key[0],key[1],key[2],key[3],key[4],key[5],key[6],key[7]);
          if (node->prefixLength<maxPrefixLength) {
             // printf("key length = %u, prefix length = %u, depth = %u\n", keyLength, node->prefixLength, depth);
@@ -396,7 +412,9 @@ leafNode* lookup(Node* node,uint8_t key[],unsigned keyLength,unsigned depth,unsi
          
          depth+=node->prefixLength;
       }
+      // printf("find child at node type=%d\n", node->type);
       node=*findChild(node,key[depth]);
+      // printf("find child address: %p\n", node);
       depth++;
    }
    // printf("look up return here!\n");
@@ -760,11 +778,11 @@ inline uint64_t min(uint64_t a, uint64_t b) { // overload
 Node* bulkLoad(uint8_t** keyMat, uint64_t* values, 
                const unsigned keyLen, const uint64_t start, 
                const uint64_t end, unsigned depth, unsigned prefixLen) {
-   // return condition
-   // static int cnt = 0;
-   // printf("here: %d\n", ++cnt);
+   // if(prefixLen!=0)
+   //    printf("entering bulkload, prefix len=%u\n", prefixLen);
    if (depth == keyLen) {
       // return NULL;
+      // printf("make leaf 1\n");
       leafNode* leaf = child2Leaf(makeLeaf(keyMat[start], keyLen, values[start]));
       for (uint64_t i = start+1; i < end; i++) {
          leaf->addValue(values[i]);
@@ -775,12 +793,13 @@ Node* bulkLoad(uint8_t** keyMat, uint64_t* values,
    uint64_t localKeyCount = end - start;
 
    if (localKeyCount == 1) { // lazy expansion
+      // printf("make leaf 2, depth=%u, prefix=%u\n", depth,prefixLen);
       return makeLeaf(keyMat[start], keyLen, values[start]);
    }
 
    uint8_t distinctKeys[min(localKeyCount, 256)]; // distinct keys at this depth
    uint64_t distinctKeyCount = 0; // number of distinct keys
-   uint64_t offset[min(localKeyCount, 256)+1]; // the start position of each distinc keys
+   uint64_t offset[min(localKeyCount, 256)+1]; // the start position of each distinct keys
    for (int i = start; i < end; i++) {
       if (i == start) {
          distinctKeys[0] = keyMat[i][depth];
@@ -794,15 +813,18 @@ Node* bulkLoad(uint8_t** keyMat, uint64_t* values,
    }
    offset[distinctKeyCount] = end - start;
    assert(distinctKeyCount >= 1 && distinctKeyCount <= 256 && distinctKeyCount <= localKeyCount);
+   // assert(std::is_sorted(distinctKeys, distinctKeys+distinctKeyCount));
 
    if (distinctKeyCount == 1) { // localKeyCount > 1
       if (depth == keyLen-1) { // last level
+         // printf("make leaf 3\n");
          leafNode* leaf = child2Leaf(makeLeaf(keyMat[start], keyLen, values[start]));
          for (uint64_t i = start+1; i < end; i++) {
             leaf->addValue(values[i]);
          }
          return leaf2Child(leaf);
       } else { // path compression
+         // printf("Path compression at depth %u\n", depth);
          return bulkLoad(keyMat, values, 
                         keyLen, start, 
                         end, depth+1, prefixLen+1);
@@ -813,6 +835,7 @@ Node* bulkLoad(uint8_t** keyMat, uint64_t* values,
    // build a local node
    if (distinctKeyCount <= 4) {
       Node4* newNode = new Node4();
+      // printf("New node4 at depth %u\n", depth);
       // check prefix
       if (prefixLen > 0) {
          if (prefixLen > maxPrefixLength) {
@@ -834,6 +857,8 @@ Node* bulkLoad(uint8_t** keyMat, uint64_t* values,
    } 
    else if (distinctKeyCount > 4 && distinctKeyCount <= 16) {
       Node16* newNode = new Node16();
+      // printf("New node16 at depth %u, prefix Len=%u\n", depth, prefixLen);
+
       // check prefix
       if (prefixLen > 0) {
          if (prefixLen > maxPrefixLength) {
@@ -844,8 +869,15 @@ Node* bulkLoad(uint8_t** keyMat, uint64_t* values,
             newNode->prefixLength = prefixLen;
          }
       }
-      for (int i = 0; i < distinctKeyCount; i++) {
-         newNode->key[i] = distinctKeys[i];
+      std::vector<std::pair<uint8_t, unsigned>> vec;
+      for(unsigned i = 0; i < distinctKeyCount; i++) {
+         vec.push_back(std::make_pair(flipSign(distinctKeys[i]), i));
+      }
+      std::sort(vec.begin(), vec.end(), [&](const std::pair<uint8_t, unsigned>& l, std::pair<uint8_t, unsigned>& r){return l.first < r.first;});
+
+      for (int j = 0; j < distinctKeyCount; j++) {
+         unsigned i = vec[j].second;
+         newNode->key[i] = vec[j].first;
          newNode->child[i] = bulkLoad(keyMat, values, 
                                     keyLen, start+offset[i], 
                                     start+offset[i+1], depth+1, 0); // prefixLen is 0 again
@@ -855,6 +887,8 @@ Node* bulkLoad(uint8_t** keyMat, uint64_t* values,
    } 
    else if (distinctKeyCount > 16 && distinctKeyCount <= 48) {
       Node48* newNode = new Node48();
+      // printf("New node48 at depth %u\n", depth);
+
       // check prefix
       if (prefixLen > 0) {
          if (prefixLen > maxPrefixLength) {
@@ -876,6 +910,7 @@ Node* bulkLoad(uint8_t** keyMat, uint64_t* values,
       return newNode;
    } 
    else { // (48,256] 
+      // printf("New node256 at depth %u\n", depth);
       // printf("Node 256!\n");
       Node256* newNode = new Node256();
       // check prefix
@@ -1004,9 +1039,11 @@ void rangeQuery(Node* node,
          uint64_t right = end >> (8*(7-depth));
          switch (node->type) {
             case(NodeType4): {
+               // printf("node4\n");
                Node4* tmp = static_cast<Node4*>(node);
                for (unsigned i = 0; i < tmp->count; i++) {
                   uint64_t value = (matchedValue << 8) + tmp->key[i];
+                  // printf("left=%llu, value=%llu, right=%llu\n", left, value, right);
                   if (value > left && value < right) {
                      // traverse all subtree
                      rangeQuery(tmp->child[i], start, end, keyLength, results, depth+1, false, value);
@@ -1022,9 +1059,10 @@ void rangeQuery(Node* node,
             }
 
             case(NodeType16): {
+               // printf("node16\n");
                Node16* tmp = static_cast<Node16*>(node);
                for (unsigned i = 0; i < tmp->count; i++) {
-                  uint64_t value = (matchedValue << 8) + tmp->key[i];
+                  uint64_t value = (matchedValue << 8) + flipSign(tmp->key[i]);
                   if (value > left && value < right) {
                      // traverse all subtree
                      rangeQuery(tmp->child[i], start, end, keyLength, results, depth+1, false, value);
@@ -1033,13 +1071,16 @@ void rangeQuery(Node* node,
                      rangeQuery(tmp->child[i], start, end, keyLength, results, depth+1, true, value);
                   }
                   else if (value > right){
-                     break; // for loop
+                     // break; // for loop
+                     continue;
                   }
                }
                break; // for case
             }
 
             case(NodeType48): {
+               // printf("node48\n");
+
                Node48* tmp = static_cast<Node48*>(node);
                unsigned cnt = 0;
                for (uint8_t i = 0; cnt < tmp->count; i++) {
@@ -1061,9 +1102,13 @@ void rangeQuery(Node* node,
             }
 
             case(NodeType256): {
+               // printf("node256\n");
+
                Node256* tmp = static_cast<Node256*>(node);
-               for (unsigned i = 0; i < tmp->count; i++) {
+               for (uint16_t i = 0; i < 256; i++) {
                   uint64_t value = (matchedValue << 8) + i;
+                  // printf("left=%llu, value=%llu, right=%llu\n", left, value, right);
+                  // assert(value >= left);
                   if (value > left && value < right) {
                      // traverse all subtree
                      rangeQuery(tmp->child[i], start, end, keyLength, results, depth+1, false, value);
