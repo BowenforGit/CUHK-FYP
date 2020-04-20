@@ -1,0 +1,10 @@
+number of elements found = 67070
+0.006713
+number of elements found = 67070
+0.006986
+number of elements found = 67070
+0.006860
+number of elements found = 67070
+0.006696
+number of elements found = 67070
+0.007143

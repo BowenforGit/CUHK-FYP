@@ -1,0 +1,10 @@
+number of elements found = 347
+0.000120
+number of elements found = 347
+0.000081
+number of elements found = 347
+0.000110
+number of elements found = 347
+0.000061
+number of elements found = 347
+0.000064

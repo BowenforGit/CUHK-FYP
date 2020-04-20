@@ -1,0 +1,10 @@
+number of elements found = 70
+0.000036
+number of elements found = 70
+0.000030
+number of elements found = 70
+0.000042
+number of elements found = 70
+0.000031
+number of elements found = 70
+0.000067

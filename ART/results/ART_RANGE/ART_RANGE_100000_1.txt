@@ -1,0 +1,10 @@
+number of elements found = 18992
+0.004352
+number of elements found = 18992
+0.003970
+number of elements found = 18992
+0.004415
+number of elements found = 18992
+0.005054
+number of elements found = 18992
+0.004003

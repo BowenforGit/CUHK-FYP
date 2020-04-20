@@ -1,0 +1,10 @@
+number of elements found = 1
+0.000035
+number of elements found = 1
+0.000035
+number of elements found = 1
+0.000036
+number of elements found = 1
+0.000033
+number of elements found = 1
+0.000035
