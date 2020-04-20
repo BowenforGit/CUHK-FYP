@@ -1,10 +1,5 @@
-number of elements found = 500000
-0.119561
-number of elements found = 500000
-0.119333
-number of elements found = 500000
-0.127031
-number of elements found = 500000
-0.131620
-number of elements found = 500000
-0.153326
+0.113628
+0.129215
+0.113607
+0.104974
+0.111631

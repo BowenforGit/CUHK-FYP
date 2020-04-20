@@ -1,10 +1,5 @@
-number of elements found = 1
-0.000033
-number of elements found = 1
-0.000017
-number of elements found = 1
-0.000016
-number of elements found = 1
-0.000092
-number of elements found = 1
-0.000018
+0.000002
+0.000003
+0.000003
+0.000002
+0.000002

@@ -189,7 +189,7 @@ void test_art_range_query(uint64_t* keys, uint64_t* values, uint64_t n, uint64_t
   rangeQuery(tree, left, right, 8, results, 0, true, 0);
 
 // #ifdef DEBUG
-  printf("number of elements found = %lu\n", results.size());
+  // printf("number of elements found = %lu\n", results.size());
   // for(auto item:results) {
   //   printf("%llu\n", item);
   // }

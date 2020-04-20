@@ -31,12 +31,12 @@ function run_all_tests() {
 	# run_test "ART_INS"
 	# run_test "ART_BULK"
 	# run_test "ART_LOOKUP"
-	# run_test "ART_RANGE"
+	run_test "ART_RANGE"
 	# run_test "ART_WITHOUT"
 	# run_test "GRASPER_INS"
 	# run_test "GRASPER_LOOKUP"
-	run_test "GRASPER_RANGE"
-	run_test "GRASPER_WITHOUT"
+	# run_test "GRASPER_RANGE"
+	# run_test "GRASPER_WITHOUT"
 }
 
 run_all_tests
